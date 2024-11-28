@@ -23,7 +23,7 @@ app.add_middleware(
 
 def download_youtube_audio(url, output_path="audio"):
     makedirs(output_path, exist_ok=True)
-    audio_path = path.join(output_path, "audio.mp3")
+    audio_path = path.join(output_path, "audio")
 
     ydl_opts = {
         'format': 'bestaudio/best',
@@ -40,7 +40,7 @@ def download_youtube_audio(url, output_path="audio"):
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([url])
 
-    return f"{audio_path}"
+    return f"{audio_path}.mp3"
 
 def transcribe_audio(audio_path):
     model = whisper.load_model("base")
@@ -74,15 +74,26 @@ def query_video_content(query, index, sentences, model):
     return results
 
 
+from fastapi.responses import FileResponse
+
 @app.post("/transcribe")
 async def transcribe_youtube(request: dict):
     url = request.get('url')
     try:
+        # Transcribe and save transcription to file
         transcription = transcribe_audio(download_youtube_audio(url))
-        save_transcription(transcription)
-        return {"transcription": transcription}
+        output_file = "transcription.txt"
+        save_transcription(transcription, output_file)
+
+        # Return the transcription file as a downloadable response
+        return FileResponse(
+            output_file,
+            media_type='text/plain',
+            filename="transcription.txt"
+        )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
 @app.post("/query")
 async def query_transcription(request: dict):
     query = request.get('query')
